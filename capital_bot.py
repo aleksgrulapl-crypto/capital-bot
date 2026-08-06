@@ -1,4 +1,10 @@
-print("capital_bot.py LOADED SUCCESSFULLY")
+print("Webhook endpoint was hit!")
+    print("Raw request data:", request.data)
+    print("Raw request form:", request.form)
+    print("Raw request args:", request.args)
+    try:
+        data = request.get_json()
+        print("Incoming JSON:", data)
 from flask import Flask, request, jsonify
 import requests
 import os
