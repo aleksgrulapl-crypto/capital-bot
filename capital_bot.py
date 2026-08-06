@@ -1,10 +1,5 @@
-print("Webhook endpoint was hit!")
-    print("Raw request data:", request.data)
-    print("Raw request form:", request.form)
-    print("Raw request args:", request.args)
-    try:
-        data = request.get_json()
-        print("Incoming JSON:", data)
+print("capital_bot.py LOADED SUCCESSFULLY")
+
 from flask import Flask, request, jsonify
 import requests
 import os
@@ -43,6 +38,10 @@ def send_order(symbol, action, quantity):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     print("Webhook endpoint was hit!")
+    print("Raw request data:", request.data)
+    print("Raw request form:", request.form)
+    print("Raw request args:", request.args)
+
     try:
         data = request.get_json()
         print("Incoming JSON:", data)
