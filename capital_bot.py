@@ -35,6 +35,7 @@ def send_order(symbol, action, quantity):
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    print("Webhook endpoint was hit!")
     try:
         data = request.get_json()
         print("Incoming JSON:", data)
