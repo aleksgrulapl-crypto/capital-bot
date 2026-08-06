@@ -58,9 +58,11 @@ def send_order(symbol, action, quantity):
     cst, xst = capital_login()
 
     # 2) Build order payload
+    epic = get_epic(symbol)
+
     payload = {
-        "epic": symbol,          # you may need to map this to Capital.com's EPIC
-        "direction": direction,  # "BUY" or "SELL"
+        "epic": epic,
+        "direction": direction,
         "size": quantity,
         "orderType": "MARKET"
     }
