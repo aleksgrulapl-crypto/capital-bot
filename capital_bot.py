@@ -108,25 +108,12 @@ def place_order(symbol, action, order_type, quantity):
 # ---------------------------------------------------------
 # WEBHOOK HANDLER
 # ---------------------------------------------------------
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json()
-    print("Webhook received:", data)
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "running"}), 200
 
-    required_fields = ["symbol", "action", "type", "quantity"]
 
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Missing field: {field}"}), 400
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 
-    symbol = data["symbol"]
-    action = data["action"]
-    order_type = data["type"]
-    quantity = data["quantity"]
-
-    if SAFE_MODE:
-        print("SAFE_MODE active — no trades will be placed.")
-        return jsonify({"status": "received", "safe_mode": True}), 200
-
-    result = place_order(symbol, action, order_type, quantity)
-    return jsonify(result), 200
