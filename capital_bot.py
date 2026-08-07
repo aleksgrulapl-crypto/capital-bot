@@ -91,7 +91,7 @@ def place_order(symbol, action, order_type, quantity):
         "epic": epic,
         "direction": action.lower(),   # buy or sell
         "size": quantity,
-        "orderType": order_type.lower()  # market, limit, stop
+        "orderType": order_type.upper()  # market, limit, stop
     }
 
     print("Sending order:", body)
