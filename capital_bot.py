@@ -1,9 +1,27 @@
-import requests
 import os
+import requests
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+SAFE_MODE = True   # Set to False when ready for real trades
+
+
+# ---------------------------------------------------------
+# EPIC MAPPING FUNCTION (required for Capital.com)
+# ---------------------------------------------------------
+def get_epic(symbol):
+    # Special case: SK Hynix (Korean stock)
+    if symbol.upper() in ["SKHY", "000660"]:
+        return "000660.KS"
+
+    # All US stocks follow <symbol>.US
+    return f"{symbol.upper()}.US"
+
+
+# ---------------------------------------------------------
+# CAPITAL.COM AUTHENTICATION
+# ---------------------------------------------------------
 def capital_login():
     print("Starting Capital.com login...")
 
@@ -46,6 +64,7 @@ def capital_login():
     print("Login successful.")
     return {"CST": cst, "XST": xst}
 
+
 tokens = capital_login()
 
 if not tokens:
@@ -54,82 +73,48 @@ else:
     print("Bot authenticated successfully. Ready for webhook.")
 
 
-# --- SEND ORDER TO CAPITAL.COM ---
-def send_order(symbol, action, quantity):
-    # Map TradingView action to Capital.com direction
-    direction = action.upper()  # "BUY" / "SELL"
-
-    # 1) Login to get tokens
-    cst, xst = capital_login()
-
-    # 2) Build order payload
+# ---------------------------------------------------------
+# ORDER PLACEMENT FUNCTION
+# ---------------------------------------------------------
+def place_order(symbol, action, order_type, quantity):
     epic = get_epic(symbol)
 
-    payload = {
-        "epic": epic,
-        "direction": direction,
-        "size": quantity,
-        "orderType": "MARKET"
-    }
+    url = "https://api-capital.backend-capital.com/api/v1/positions"
 
     headers = {
-        "X-CAP-API-KEY": CAPITAL_API_KEY,
-        "CST": cst,
-        "X-SECURITY-TOKEN": xst,
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "CST": tokens["CST"],
+        "X-SECURITY-TOKEN": tokens["XST"]
     }
 
-    print("Sending order payload:", payload)
-    resp = requests.post(POSITIONS_ENDPOINT, json=payload, headers=headers)
-    print("Order status:", resp.status_code)
-    print("Order raw response:", resp.text)
+    body = {
+        "epic": epic,
+        "direction": action.lower(),   # buy or sell
+        "size": quantity,
+        "orderType": order_type.lower()  # market, limit, stop
+    }
+
+    print("Sending order:", body)
 
     try:
-        return resp.json()
-    except Exception:
-        return {"status": "error", "message": resp.text}
+        r = requests.post(url, json=body, headers=headers)
+        print("Order response:", r.status_code, r.text)
+        return r.json()
+    except Exception as e:
+        print("Order failed:", e)
+        return {"error": str(e)}
 
 
-# --- WEBHOOK ---
+# ---------------------------------------------------------
+# WEBHOOK HANDLER
+# ---------------------------------------------------------
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    print("Webhook endpoint was hit!")
-    print("Raw request data:", request.data)
+    data = request.get_json()
+    print("Webhook received:", data)
 
-    try:
-        data = request.get_json(silent=True)
-        print("Incoming JSON:", data)
+    required_fields = ["symbol", "action", "type", "quantity"]
 
-        if data is None:
-            return jsonify({"error": "Invalid or empty JSON"}), 400
-
-        required = ["symbol", "action", "type", "quantity"]
-        for field in required:
-            if field not in data:
-                return jsonify({"error": f"Missing field: {field}"}), 400
-
-        symbol   = data["symbol"]
-        action   = data["action"]
-        quantity = data["quantity"]
-
-        print(f"Received order → {symbol} | {action} | qty={quantity}")
-
-        result = send_order(symbol, action, quantity)
-        print("Capital.com response (parsed):", result)
-
-        return jsonify(result)
-
-    except Exception as e:
-        print("Webhook error:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# --- HEALTH CHECK ---
-@app.route("/", methods=["GET"])
-def home():
-    return "Capital.com Trading Bot is running!"
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing field: {field}"}
