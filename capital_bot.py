@@ -117,4 +117,16 @@ def webhook():
 
     for field in required_fields:
         if field not in data:
-            return jsonify({"error": f"Missing field: {field}"}
+            return jsonify({"error": f"Missing field: {field}"}), 400
+
+    symbol = data["symbol"]
+    action = data["action"]
+    order_type = data["type"]
+    quantity = data["quantity"]
+
+    if SAFE_MODE:
+        print("SAFE_MODE active — no trades will be placed.")
+        return jsonify({"status": "received", "safe_mode": True}), 200
+
+    result = place_order(symbol, action, order_type, quantity)
+    return jsonify(result), 200
