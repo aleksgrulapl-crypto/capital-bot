@@ -97,37 +97,4 @@ def place_order(symbol, action, order_type, quantity):
     print("Sending order:", body)
 
     try:
-        r = requests.post(url, json=body, headers=headers)
-        print("Order response:", r.status_code, r.text)
-        return r.json()
-    except Exception as e:
-        print("Order failed:", e)
-        return {"error": str(e)}
-
-
-# ---------------------------------------------------------
-# WEBHOOK HANDLER
-# ---------------------------------------------------------
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json()
-    print("Webhook received:", data)
-
-    required_fields = ["symbol", "action", "type", "quantity"]
-
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Missing field: {field}"}), 400
-
-    symbol = data["symbol"]
-    action = data["action"]
-    order_type = data["type"]
-    quantity = data["quantity"]
-
-    if SAFE_MODE:
-        print("SAFE_MODE active — no trades will be placed.")
-        return jsonify({"status": "received", "safe_mode": True}), 200
-
-    result = place_order(symbol, action, order_type, quantity)
-    return jsonify(result), 200
-
+        r = requests.post
