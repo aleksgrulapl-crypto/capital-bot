@@ -89,9 +89,9 @@ def place_order(symbol, action, order_type, quantity):
 
     body = {
         "epic": epic,
-        "direction": action.lower(),   # buy or sell
-        "size": quantity,
-        "orderType": order_type.upper()  # market, limit, stop
+        "direction": action.upper(),   # BUY or SELL
+        "size": float(quantity),       # ensure numeric
+        "orderType": order_type.upper()  # MARKET, LIMIT, STOP
     }
 
     print("Sending order:", body)
@@ -103,8 +103,6 @@ def place_order(symbol, action, order_type, quantity):
     except Exception as e:
         print("Order failed:", e)
         return {"error": str(e)}
-
-
 # ---------------------------------------------------------
 # WEBHOOK HANDLER (POST)
 # ---------------------------------------------------------
