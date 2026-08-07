@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-SAFE_MODE = True   # Set to False when ready for real trades
+SAFE_MODE = False   # Set to False when ready for real trades
 
 
 # ---------------------------------------------------------
