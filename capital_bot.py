@@ -9,9 +9,9 @@ SAFE_MODE = True  # Set to False when ready for real trades
 # ---------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------
-API_KEY = "LIVE_API_KEY_HERE"
-IDENTIFIER = "LIVE_EMAIL_HERE"
-PASSWORD = "LIVE_PASSWORD_HERE"
+API_KEY = os.getenv("API_KEY")
+IDENTIFIER = os.getenv("API_EMAIL")
+PASSWORD = os.getenv("API_PASSWORD")
 BASE_URL = "https://api-capital.backend-capital.com"
 
 tokens = {"CST": None, "XST": None}
