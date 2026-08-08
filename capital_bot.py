@@ -142,12 +142,12 @@ def home():
 # STARTUP
 # ---------------------------------------------------------
 if __name__ == "__main__":
-    if not capital_login():
+  if not capital_login():
     print("FATAL: Authentication failed. Bot will not start.")
 else:
     print("Bot authenticated successfully. Ready for webhook.")
-    # Test epic lookup once at startup
-    verify_epic("EURUSD")  # 👈 You can change this to any symbol you want to test
+    verify_epic("EURUSD")
     port = int(os.environ.get("PORT", 500))
     app.run(host="0.0.0.0", port=port)
+
 
