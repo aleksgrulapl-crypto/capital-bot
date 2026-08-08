@@ -62,6 +62,26 @@ def verify_epic(epic):
 
 
 # ---------------------------------------------------------
+# MARKET STATUS CHECK
+# ---------------------------------------------------------
+def is_market_open(epic):
+    data = verify_epic(epic)
+    status = data.get("snapshot", {}).get("marketStatus", "")
+    print(f"[INFO] Market status for {epic}: {status}")
+    return status == "TRADEABLE"
+
+
+# ---------------------------------------------------------
+# POSITION SIZING FUNCTION
+# ---------------------------------------------------------
+def calculate_position_size(equity, risk_fraction, price):
+    capital_to_use = equity * risk_fraction
+    size = capital_to_use / price
+    print(f"[INFO] Calculated position size: {size:.2f} units (Equity={equity}, Risk={risk_fraction}, Price={price})")
+    return round(size, 2)
+
+
+# ---------------------------------------------------------
 # PLACE ORDER FUNCTION
 # ---------------------------------------------------------
 def place_order(epic, direction, size):
@@ -107,14 +127,24 @@ def webhook():
 
     symbol = data.get("symbol", "EURUSD")
     action = data.get("action", "buy")
-    quantity = data.get("quantity", 1)
 
+    # Dynamic sizing
+    equity = float(os.getenv("ACCOUNT_EQUITY", 10000))  # Replace with live equity if available
+    risk_fraction = 0.20  # 20% of equity per trade
+    price = verify_epic(symbol).get("snapshot", {}).get("offer", 1.0)
+    quantity = calculate_position_size(equity, risk_fraction, price)
+
+    # Ensure tokens are valid
     if not tokens["CST"] or not tokens["XST"]:
         capital_login()
 
-    verify_epic(symbol)
-    result = place_order(symbol, action, quantity)
+    # Market check
+    if not is_market_open(symbol):
+        print(f"[INFO] Market closed for {symbol}. Skipping trade.")
+        return jsonify({"error": f"Market closed for {symbol}"}), 200
 
+    # Place order
+    result = place_order(symbol, action, quantity)
     return jsonify(result), 200
 
 
