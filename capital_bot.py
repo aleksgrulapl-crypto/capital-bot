@@ -1,153 +1,78 @@
-import sys
-sys.stdout.reconfigure(line_buffering=True)
 import os
 import requests
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-SAFE_MODE = False  # Set to False when ready for real trades
-
 # ---------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------
-API_KEY = os.getenv("API_KEY")
-IDENTIFIER = os.getenv("API_EMAIL")
-PASSWORD = os.getenv("API_PASSWORD")
 BASE_URL = "https://api-capital.backend-capital.com"
+API_KEY = os.getenv("API_KEY")
+API_EMAIL = os.getenv("API_EMAIL")
+API_PASSWORD = os.getenv("API_PASSWORD")
 
+# Store tokens globally
 tokens = {"CST": None, "XST": None}
 
-# ---------------------------------------------------------
-# EPIC MAPPING FUNCTION
-# ---------------------------------------------------------
-def get_epic(symbol):
-    if symbol.upper() in ["SKHY", "000660"]:
-        return "000660.KS"
-    return f"{symbol.upper()}.US"
 
 # ---------------------------------------------------------
-# LOGIN + TOKEN HANDLING
+# LOGIN FUNCTION
 # ---------------------------------------------------------
 def capital_login():
     print("Logging in to Capital.com...")
     url = f"{BASE_URL}/api/v1/session"
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "X-CAP-API-KEY": API_KEY
+    payload = {
+        "identifier": API_EMAIL,
+        "password": API_PASSWORD,
+        "encryptedPassword": False
     }
-    body = {"identifier": IDENTIFIER, "password": PASSWORD, "encryptedPassword": False}
+    headers = {
+        "X-CAP-API-KEY": API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
 
-    try:
-        r = requests.post(url, json=body, headers=headers)
-        r.raise_for_status()
-    except Exception as e:
-        print("Login failed:", e)
-        return None
+    r = requests.post(url, json=payload, headers=headers)
+    if r.status_code == 200:
+        tokens["CST"] = r.headers.get("CST")
+        tokens["XST"] = r.headers.get("X-SECURITY-TOKEN")
+        print("Login successful. Tokens updated.")
+        return True
+    else:
+        print("Login failed:", r.text)
+        return False
 
-    tokens["CST"] = r.headers.get("CST")
-    tokens["XST"] = r.headers.get("X-SECURITY-TOKEN")
 
-    if not tokens["CST"] or not tokens["XST"]:
-        print("ERROR: Tokens missing in login response.")
-        print("Response:", r.text)
-        return None
-
-    print("Login successful. Tokens updated.")
-    return tokens
-    
 # ---------------------------------------------------------
-# VERIFY EPIC FUNCTION (for debugging instrument codes)
+# VERIFY EPIC FUNCTION
 # ---------------------------------------------------------
 def verify_epic(epic):
     print(f"Verifying epic: {epic}")
-    result = capital_request("GET", f"/api/v1/markets/{epic}")
-    print("Verify epic result:", result)
-    return result
-
-# ---------------------------------------------------------
-# REQUEST WRAPPER WITH RETRY
-# ---------------------------------------------------------
-def capital_request(method, endpoint, payload=None):
-    url = f"{BASE_URL}{endpoint}"
+    url = f"{BASE_URL}/api/v1/markets/{epic}"
     headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
         "X-CAP-API-KEY": API_KEY,
         "CST": tokens["CST"],
-        "X-SECURITY-TOKEN": tokens["XST"]
+        "X-SECURITY-TOKEN": tokens["XST"],
+        "Accept": "application/json"
     }
+    r = requests.get(url, headers=headers)
+    print("Response text:", r.text)
+    return r.json()
 
-    try:
-        r = requests.request(method, url, json=payload, headers=headers)
-        print("Response text:", r.text)  # 👈 Paste this line here
-        if r.status_code == 401:
-            print("Session expired — refreshing tokens...")
-            capital_login()
-            headers["CST"] = tokens["CST"]
-            headers["X-SECURITY-TOKEN"] = tokens["XST"]
-            r = requests.request(method, url, json=payload, headers=headers)
-            print("Response text after refresh:", r.text)  # 👈 Optional second print
-        r.raise_for_status()
-        return r.json()
-    except Exception as e:
-        print("Request failed:", e)
-        return {"error": str(e)}
 
 # ---------------------------------------------------------
-# ORDER PLACEMENT
+# PLACE ORDER FUNCTION
 # ---------------------------------------------------------
-def place_order(symbol, action, order_type, quantity):
-    epic = get_epic(symbol)
+def place_order(epic, direction, size):
+    print(f"Placing order: {{'epic': '{epic}', 'direction': '{direction}', 'size': {size}, 'orderType': 'MARKET', 'guaranteedStop': False}}")
+
+    url = f"{BASE_URL}/api/v1/positions"
     payload = {
         "epic": epic,
-        "direction": action.upper(),     # BUY or SELL
-        "size": quantity,
-        "orderType": order_type.upper(), # MARKET, LIMIT, STOP
+        "direction": direction.upper(),
+        "size": size,
+        "orderType": "MARKET",
         "guaranteedStop": False
     }
-    print("Placing order:", payload)
-    return capital_request("POST", "/api/v1/positions", payload)
-
-
-# ---------------------------------------------------------
-# WEBHOOK HANDLER
-# ---------------------------------------------------------
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json()
-    print("Webhook received:", data)
-
-    required_fields = ["symbol", "action", "type", "quantity"]
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Missing field: {field}"}), 400
-
-    if SAFE_MODE:
-        print("SAFE_MODE active — trade skipped.")
-        return jsonify({"status": "received", "safe_mode": True}), 200
-
-    result = place_order(data["symbol"], data["action"], data["type"], data["quantity"])
-    return jsonify(result), 200
-
-# ---------------------------------------------------------
-# ROOT ENDPOINT
-# ---------------------------------------------------------
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"status": "running"}), 200
-
-# ---------------------------------------------------------
-# STARTUP
-# ---------------------------------------------------------
-if __name__ == "__main__":
-    if not capital_login():
-        print("FATAL: Authentication failed. Bot will not start.")
-    else:
-        print("Bot authenticated successfully. Ready for webhook.")
-        verify_epic("EURUSD")  # optional test
-        port = int(os.environ.get("PORT", 500))
-        app.run(host="0.0.0.0", port=port)
-
-
+    headers
