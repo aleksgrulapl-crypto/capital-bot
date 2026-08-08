@@ -12,6 +12,9 @@ API_KEY = os.getenv("API_KEY")
 API_EMAIL = os.getenv("API_EMAIL")
 API_PASSWORD = os.getenv("API_PASSWORD")
 
+# Fixed equity (safe option)
+FIXED_EQUITY = float(os.getenv("ACCOUNT_EQUITY", 10000))  # Set in Render
+
 # Store tokens globally
 tokens = {"CST": None, "XST": None}
 
@@ -20,7 +23,7 @@ tokens = {"CST": None, "XST": None}
 # LOGIN FUNCTION
 # ---------------------------------------------------------
 def capital_login():
-    print("Logging in to Capital.com...")
+    print("[INFO] Logging in to Capital.com...")
     url = f"{BASE_URL}/api/v1/session"
     payload = {
         "identifier": API_EMAIL,
@@ -34,21 +37,22 @@ def capital_login():
     }
 
     r = requests.post(url, json=payload, headers=headers)
+
     if r.status_code == 200:
         tokens["CST"] = r.headers.get("CST")
         tokens["XST"] = r.headers.get("X-SECURITY-TOKEN")
-        print("Login successful. Tokens updated.")
+        print("[INFO] Login successful. Tokens updated.")
         return True
-    else:
-        print("Login failed:", r.text)
-        return False
+
+    print("[ERROR] Login failed:", r.text)
+    return False
 
 
 # ---------------------------------------------------------
 # VERIFY EPIC FUNCTION
 # ---------------------------------------------------------
 def verify_epic(epic):
-    print(f"Verifying epic: {epic}")
+    print(f"[INFO] Verifying epic: {epic}")
     url = f"{BASE_URL}/api/v1/markets/{epic}"
     headers = {
         "X-CAP-API-KEY": API_KEY,
@@ -56,8 +60,9 @@ def verify_epic(epic):
         "X-SECURITY-TOKEN": tokens["XST"],
         "Accept": "application/json"
     }
+
     r = requests.get(url, headers=headers)
-    print("Response text:", r.text)
+    print("[DEBUG] Epic response:", r.text)
     return r.json()
 
 
@@ -72,10 +77,17 @@ def is_market_open(epic):
 
 
 # ---------------------------------------------------------
-# POSITION SIZING FUNCTION
+# POSITION SIZING (FIXED EQUITY)
 # ---------------------------------------------------------
-def calculate_position_size(equity, risk_fraction, price):
+def calculate_position_size(price, risk_fraction=0.20):
+    equity = FIXED_EQUITY
     capital_to_use = equity * risk_fraction
+
+    # Avoid division by zero
+    if price <= 0:
+        print("[WARN] Invalid price received. Using fallback price=1.0")
+        price = 1.0
+
     size = capital_to_use / price
     print(f"[INFO] Calculated position size: {size:.2f} units (Equity={equity}, Risk={risk_fraction}, Price={price})")
     return round(size, 2)
@@ -85,7 +97,7 @@ def calculate_position_size(equity, risk_fraction, price):
 # PLACE ORDER FUNCTION
 # ---------------------------------------------------------
 def place_order(epic, direction, size):
-    print(f"Placing order: {{'epic': '{epic}', 'direction': '{direction}', 'size': {size}, 'orderType': 'MARKET', 'guaranteedStop': False}}")
+    print(f"[INFO] Placing order: epic={epic}, direction={direction}, size={size}")
 
     url = f"{BASE_URL}/api/v1/positions"
     payload = {
@@ -104,12 +116,13 @@ def place_order(epic, direction, size):
     }
 
     r = requests.post(url, json=payload, headers=headers)
-    print("Response text:", r.text)
+    print("[DEBUG] Order response:", r.text)
+
     if r.status_code == 200:
         return r.json()
-    else:
-        print("Request failed:", r.status_code, r.text)
-        return {"error": r.text}
+
+    print("[ERROR] Order failed:", r.status_code, r.text)
+    return {"error": r.text}
 
 
 # ---------------------------------------------------------
@@ -123,20 +136,21 @@ def home():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json()
-    print("Webhook received:", data)
+    print("[INFO] Webhook received:", data)
 
     symbol = data.get("symbol", "EURUSD")
     action = data.get("action", "buy")
 
-    # Dynamic sizing
-    equity = float(os.getenv("ACCOUNT_EQUITY", 10000))  # Replace with live equity if available
-    risk_fraction = 0.20  # 20% of equity per trade
-    price = verify_epic(symbol).get("snapshot", {}).get("offer", 1.0)
-    quantity = calculate_position_size(equity, risk_fraction, price)
-
     # Ensure tokens are valid
     if not tokens["CST"] or not tokens["XST"]:
         capital_login()
+
+    # Get price for sizing
+    epic_data = verify_epic(symbol)
+    price = epic_data.get("snapshot", {}).get("offer", 1.0)
+
+    # Calculate size using fixed equity
+    quantity = calculate_position_size(price)
 
     # Market check
     if not is_market_open(symbol):
@@ -158,7 +172,7 @@ def health():
 # ---------------------------------------------------------
 if __name__ == "__main__":
     if not capital_login():
-        print("FATAL: Authentication failed. Bot will not start.")
+        print("[FATAL] Authentication failed. Bot will not start.")
     else:
-        print("Bot authenticated successfully. Ready for webhook.")
+        print("[INFO] Bot authenticated successfully. Ready for webhook.")
         verify_epic("EURUSD")
