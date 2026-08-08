@@ -89,12 +89,14 @@ def place_order(symbol, action, order_type, quantity):
     epic = get_epic(symbol)
     payload = {
         "epic": epic,
-        "direction": action.lower(),
+        "direction": action.upper(),     # BUY or SELL
         "size": quantity,
-        "orderType": order_type.lower()
+        "orderType": order_type.upper(), # MARKET, LIMIT, STOP
+        "guaranteedStop": False
     }
     print("Placing order:", payload)
     return capital_request("POST", "/api/v1/positions", payload)
+
 
 # ---------------------------------------------------------
 # WEBHOOK HANDLER
