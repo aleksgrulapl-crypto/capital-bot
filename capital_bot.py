@@ -1,3 +1,5 @@
+import sys
+sys.stdout.reconfigure(line_buffering=True)
 import os
 import requests
 from flask import Flask, request, jsonify
