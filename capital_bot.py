@@ -70,12 +70,14 @@ def capital_request(method, endpoint, payload=None):
 
     try:
         r = requests.request(method, url, json=payload, headers=headers)
+        print("Response text:", r.text)  # 👈 Paste this line here
         if r.status_code == 401:
             print("Session expired — refreshing tokens...")
             capital_login()
             headers["CST"] = tokens["CST"]
             headers["X-SECURITY-TOKEN"] = tokens["XST"]
             r = requests.request(method, url, json=payload, headers=headers)
+            print("Response text after refresh:", r.text)  # 👈 Optional second print
         r.raise_for_status()
         return r.json()
     except Exception as e:
