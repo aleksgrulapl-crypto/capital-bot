@@ -8,18 +8,6 @@ SAFE_MODE = False   # Set to False when ready for real trades
 
 
 # ---------------------------------------------------------
-# EPIC MAPPING FUNCTION (required for Capital.com)
-# ---------------------------------------------------------
-def get_epic(symbol):
-    # Special case: SK Hynix (Korean stock)
-    if symbol.upper() in ["SKHY", "000660"]:
-        return "000660.KS"
-
-    # All US stocks follow <symbol>.US
-    return f"{symbol.upper()}.US"
-
-
-# ---------------------------------------------------------
 # CAPITAL.COM AUTHENTICATION
 # ---------------------------------------------------------
 def capital_login():
