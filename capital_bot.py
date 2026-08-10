@@ -29,12 +29,16 @@ def capital_login():
         "identifier": API_EMAIL,
         "password": API_PASSWORD,
         "encryptedPassword": False
-    }
     headers = {
-        "X-CAP-API-KEY": API_KEY,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
+    "X-CAP-API-KEY": API_KEY,
+    "X-IG-API-KEY": API_KEY,               # Required for IG-compatible endpoints
+    "CST": tokens["CST"],
+    "X-SECURITY-TOKEN": tokens["XST"],
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "CapitalComPythonBot/1.0"
+}
+
 
     r = requests.post(url, json=payload, headers=headers)
 
