@@ -39,14 +39,16 @@ def capital_login():
     r = requests.post(url, json=payload, headers=headers)
 
     if r.status_code == 200:
-        tokens["CST"] = r.headers.get("CST")
-        tokens["XST"] = r.headers.get("X-SECURITY-TOKEN")
+        body = r.json()
+
+        tokens["CST"] = body.get("CST")
+        tokens["XST"] = body.get("securityToken")
+
         print("[INFO] Login successful. Tokens updated.")
         return True
 
     print("[ERROR] Login failed:", r.text)
     return False
-
 
 # ---------------------------------------------------------
 # VERIFY EPIC FUNCTION
