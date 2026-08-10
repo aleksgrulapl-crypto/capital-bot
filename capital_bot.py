@@ -118,4 +118,101 @@ def is_market_open(epic):
 # ---------------------------------------------------------
 # POSITION SIZE (Option A — Available Equity)
 # ---------------------------------------------------------
-def calculate
+def calculate_position_size(price, risk_fraction=0.20):
+    equity = tokens["available_equity"]
+
+    if equity is None:
+        print("[WARN] Equity not loaded, using fallback £100.")
+        equity = 100
+
+    capital_to_use = equity * risk_fraction
+
+    if price <= 0:
+        price = 1.0
+
+    size = capital_to_use / price
+    print(f"[INFO] Calculated position size: {size:.2f} units (Equity={equity}, Price={price})")
+    return round(size, 2)
+
+
+# ---------------------------------------------------------
+# PLACE ORDER
+# ---------------------------------------------------------
+def place_order(epic, direction, size):
+    print(f"[INFO] Placing order: epic={epic}, direction={direction}, size={size}")
+
+    url = f"{BASE_URL}/api/v1/positions"
+    payload = {
+        "epic": epic,
+        "direction": direction.upper(),
+        "size": size,
+        "orderType": "MARKET",
+        "guaranteedStop": False
+    }
+
+    r = requests.post(url, json=payload, headers=auth_headers())
+    print("[DEBUG] Order response:", r.text)
+    return r.json()
+
+
+# ---------------------------------------------------------
+# DEAL CONFIRMATION
+# ---------------------------------------------------------
+def confirm_deal(deal_reference):
+    print(f"[INFO] Confirming deal: {deal_reference}")
+    url = f"{BASE_URL}/api/v1/confirms/{deal_reference}"
+    r = requests.get(url, headers=auth_headers())
+    print("[DEBUG] Deal confirmation:", r.text)
+    return r.json()
+
+
+# ---------------------------------------------------------
+# WEBHOOK
+# ---------------------------------------------------------
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    print("[INFO] Webhook received:", data)
+
+    symbol = data.get("symbol", "EURUSD")
+    action = data.get("action", "buy")
+
+    ensure_tokens()
+
+    epic_data = verify_epic(symbol)
+    price = epic_data.get("snapshot", {}).get("offer", 1.0)
+
+    quantity = calculate_position_size(price)
+
+    if not is_market_open(symbol):
+        print(f"[INFO] Market closed for {symbol}. Skipping trade.")
+        return jsonify({"error": f"Market closed for {symbol}"}), 200
+
+    order = place_order(symbol, action, quantity)
+
+    if "dealReference" in order:
+        confirm = confirm_deal(order["dealReference"])
+        return jsonify({"order": order, "confirmation": confirm}), 200
+
+    return jsonify({"error": "Order failed", "details": order}), 200
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Capital.com Trading Bot is live!", 200
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return "OK", 200
+
+
+# ---------------------------------------------------------
+# STARTUP
+# ---------------------------------------------------------
+if __name__ == "__main__":
+    if not capital_login():
+        print("[FATAL] Authentication failed. Bot will not start.")
+    else:
+        print("[INFO] Bot authenticated successfully. Ready for webhook.")
+        verify_epic("EURUSD")
