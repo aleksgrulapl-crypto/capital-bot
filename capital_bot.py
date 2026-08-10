@@ -61,11 +61,15 @@ def verify_epic(epic):
     print(f"[INFO] Verifying epic: {epic}")
     url = f"{BASE_URL}/api/v1/markets/{epic}"
     headers = {
-        "X-CAP-API-KEY": API_KEY,
-        "CST": tokens["CST"],
-        "X-SECURITY-TOKEN": tokens["XST"],
-        "Accept": "application/json"
-    }
+    "X-CAP-API-KEY": API_KEY,
+    "X-IG-API-KEY": API_KEY,               # Required for IG-compatible endpoints
+    "CST": tokens["CST"],
+    "X-SECURITY-TOKEN": tokens["XST"],
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "CapitalComPythonBot/1.0"
+}
+
 
     r = requests.get(url, headers=headers)
     print("[DEBUG] Epic response:", r.text)
@@ -114,12 +118,15 @@ def place_order(epic, direction, size):
         "guaranteedStop": False
     }
     headers = {
-        "X-CAP-API-KEY": API_KEY,
-        "CST": tokens["CST"],
-        "X-SECURITY-TOKEN": tokens["XST"],
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
+    "X-CAP-API-KEY": API_KEY,
+    "X-IG-API-KEY": API_KEY,               # Required for IG-compatible endpoints
+    "CST": tokens["CST"],
+    "X-SECURITY-TOKEN": tokens["XST"],
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "CapitalComPythonBot/1.0"
+}
+
 
     r = requests.post(url, json=payload, headers=headers)
     print("[DEBUG] Order response:", r.text)
