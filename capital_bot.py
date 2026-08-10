@@ -14,17 +14,16 @@ API_PASSWORD = os.getenv("API_PASSWORD")
 
 FIXED_EQUITY = float(os.getenv("ACCOUNT_EQUITY", 10000))
 
-# Store tokens globally
 tokens = {"CST": None, "XST": None}
 
 
 # ---------------------------------------------------------
-# LOGIN FUNCTION
+# LOGIN
 # ---------------------------------------------------------
 def capital_login():
     print("[INFO] Logging in to Capital.com...")
-    url = f"{BASE_URL}/api/v1/session"
 
+    url = f"{BASE_URL}/api/v1/session"
     payload = {
         "identifier": API_EMAIL,
         "password": API_PASSWORD,
@@ -54,7 +53,7 @@ def capital_login():
 
 
 # ---------------------------------------------------------
-# STANDARD HEADERS (USED EVERYWHERE)
+# AUTH HEADERS
 # ---------------------------------------------------------
 def auth_headers():
     return {
@@ -69,20 +68,20 @@ def auth_headers():
 
 
 # ---------------------------------------------------------
-# VERIFY EPIC FUNCTION
+# VERIFY EPIC
 # ---------------------------------------------------------
 def verify_epic(epic):
     print(f"[INFO] Verifying epic: {epic}")
+
     url = f"{BASE_URL}/api/v1/markets/{epic}"
-
     r = requests.get(url, headers=auth_headers())
-    print("[DEBUG] Epic response:", r.text)
 
+    print("[DEBUG] Epic response:", r.text)
     return r.json()
 
 
 # ---------------------------------------------------------
-# MARKET STATUS CHECK
+# MARKET STATUS
 # ---------------------------------------------------------
 def is_market_open(epic):
     data = verify_epic(epic)
@@ -92,7 +91,7 @@ def is_market_open(epic):
 
 
 # ---------------------------------------------------------
-# POSITION SIZING
+# POSITION SIZE
 # ---------------------------------------------------------
 def calculate_position_size(price, risk_fraction=0.20):
     equity = FIXED_EQUITY
@@ -103,18 +102,17 @@ def calculate_position_size(price, risk_fraction=0.20):
         price = 1.0
 
     size = capital_to_use / price
-    print(f"[INFO] Calculated position size: {size:.2f} units (Equity={equity}, Risk={risk_fraction}, Price={price})")
+    print(f"[INFO] Calculated position size: {size:.2f} units")
     return round(size, 2)
 
 
 # ---------------------------------------------------------
-# PLACE ORDER FUNCTION
+# PLACE ORDER
 # ---------------------------------------------------------
 def place_order(epic, direction, size):
     print(f"[INFO] Placing order: epic={epic}, direction={direction}, size={size}")
 
     url = f"{BASE_URL}/api/v1/positions"
-
     payload = {
         "epic": epic,
         "direction": direction.upper(),
@@ -134,13 +132,8 @@ def place_order(epic, direction, size):
 
 
 # ---------------------------------------------------------
-# FLASK ROUTES
+# WEBHOOK
 # ---------------------------------------------------------
-@app.route("/", methods=["GET"])
-def home():
-    return "Capital.com Trading Bot is live!", 200
-
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json()
@@ -149,25 +142,25 @@ def webhook():
     symbol = data.get("symbol", "EURUSD")
     action = data.get("action", "buy")
 
-    # Ensure tokens are valid
     if not tokens["CST"] or not tokens["XST"]:
         capital_login()
 
-    # Get price
     epic_data = verify_epic(symbol)
     price = epic_data.get("snapshot", {}).get("offer", 1.0)
 
-    # Position size
     quantity = calculate_position_size(price)
 
-    # Market check
     if not is_market_open(symbol):
         print(f"[INFO] Market closed for {symbol}. Skipping trade.")
         return jsonify({"error": f"Market closed for {symbol}"}), 200
 
-    # Place order
     result = place_order(symbol, action, quantity)
     return jsonify(result), 200
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Capital.com Trading Bot is live!", 200
 
 
 @app.route("/health", methods=["GET"])
