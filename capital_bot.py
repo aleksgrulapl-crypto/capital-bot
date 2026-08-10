@@ -12,13 +12,15 @@ API_KEY = os.getenv("API_KEY")
 API_EMAIL = os.getenv("API_EMAIL")
 API_PASSWORD = os.getenv("API_PASSWORD")
 
-FIXED_EQUITY = float(os.getenv("ACCOUNT_EQUITY", 10000))
-
-tokens = {"CST": None, "XST": None}
-
+tokens = {
+    "CST": None,
+    "XST": None,
+    "available_equity": None,
+    "balance_equity": None
+}
 
 # ---------------------------------------------------------
-# LOGIN
+# LOGIN (CST + XST from HEADERS)
 # ---------------------------------------------------------
 def capital_login():
     print("[INFO] Logging in to Capital.com...")
@@ -39,41 +41,30 @@ def capital_login():
 
     r = requests.post(url, json=payload, headers=headers)
 
-    print("[DEBUG] Raw login response text:", r.text)
-    print("[DEBUG] Raw login response headers:", r.headers)
+    print("[DEBUG] Login headers:", r.headers)
+    print("[DEBUG] Login body:", r.text)
 
     if r.status_code == 200:
-        try:
-            body = r.json()
-            print("[DEBUG] Parsed login JSON:", body)
-        except:
-            print("[ERROR] Could not parse login JSON.")
-            return False
+        body = r.json()
 
-        # Try all known token fields
-        tokens["CST"] = (
-            body.get("CST")
-            or body.get("cst")
-            or r.headers.get("CST")
-            or r.headers.get("cst")
-        )
+        # Extract tokens from HEADERS (Capital.com confirmed this)
+        tokens["CST"] = r.headers.get("CST")
+        tokens["XST"] = r.headers.get("X-SECURITY-TOKEN")
 
-        tokens["XST"] = (
-            body.get("securityToken")
-            or body.get("xSecurityToken")
-            or body.get("X-SECURITY-TOKEN")
-            or r.headers.get("X-SECURITY-TOKEN")
-            or r.headers.get("securityToken")
-        )
+        # Extract real equity
+        tokens["available_equity"] = body["accountInfo"]["available"]
+        tokens["balance_equity"] = body["accountInfo"]["balance"]
 
         print("[INFO] Extracted CST:", tokens["CST"])
         print("[INFO] Extracted XST:", tokens["XST"])
+        print("[INFO] Available equity:", tokens["available_equity"])
+        print("[INFO] Balance equity:", tokens["balance_equity"])
 
         if tokens["CST"] and tokens["XST"]:
             print("[INFO] Login successful. Tokens updated.")
             return True
 
-        print("[ERROR] Login succeeded but tokens were NOT found.")
+        print("[ERROR] Login succeeded but tokens missing.")
         return False
 
     print("[ERROR] Login failed:", r.text)
@@ -96,14 +87,20 @@ def auth_headers():
 
 
 # ---------------------------------------------------------
+# AUTO-REFRESH TOKENS
+# ---------------------------------------------------------
+def ensure_tokens():
+    if not tokens["CST"] or not tokens["XST"]:
+        capital_login()
+
+
+# ---------------------------------------------------------
 # VERIFY EPIC
 # ---------------------------------------------------------
 def verify_epic(epic):
     print(f"[INFO] Verifying epic: {epic}")
-
     url = f"{BASE_URL}/api/v1/markets/{epic}"
     r = requests.get(url, headers=auth_headers())
-
     print("[DEBUG] Epic response:", r.text)
     return r.json()
 
@@ -119,89 +116,6 @@ def is_market_open(epic):
 
 
 # ---------------------------------------------------------
-# POSITION SIZE
+# POSITION SIZE (Option A — Available Equity)
 # ---------------------------------------------------------
-def calculate_position_size(price, risk_fraction=0.20):
-    equity = FIXED_EQUITY
-    capital_to_use = equity * risk_fraction
-
-    if price <= 0:
-        print("[WARN] Invalid price received. Using fallback price=1.0")
-        price = 1.0
-
-    size = capital_to_use / price
-    print(f"[INFO] Calculated position size: {size:.2f} units")
-    return round(size, 2)
-
-
-# ---------------------------------------------------------
-# PLACE ORDER
-# ---------------------------------------------------------
-def place_order(epic, direction, size):
-    print(f"[INFO] Placing order: epic={epic}, direction={direction}, size={size}")
-
-    url = f"{BASE_URL}/api/v1/positions"
-    payload = {
-        "epic": epic,
-        "direction": direction.upper(),
-        "size": size,
-        "orderType": "MARKET",
-        "guaranteedStop": False
-    }
-
-    r = requests.post(url, json=payload, headers=auth_headers())
-    print("[DEBUG] Order response:", r.text)
-
-    if r.status_code == 200:
-        return r.json()
-
-    print("[ERROR] Order failed:", r.status_code, r.text)
-    return {"error": r.text}
-
-
-# ---------------------------------------------------------
-# WEBHOOK
-# ---------------------------------------------------------
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.get_json()
-    print("[INFO] Webhook received:", data)
-
-    symbol = data.get("symbol", "EURUSD")
-    action = data.get("action", "buy")
-
-    if not tokens["CST"] or not tokens["XST"]:
-        capital_login()
-
-    epic_data = verify_epic(symbol)
-    price = epic_data.get("snapshot", {}).get("offer", 1.0)
-
-    quantity = calculate_position_size(price)
-
-    if not is_market_open(symbol):
-        print(f"[INFO] Market closed for {symbol}. Skipping trade.")
-        return jsonify({"error": f"Market closed for {symbol}"}), 200
-
-    result = place_order(symbol, action, quantity)
-    return jsonify(result), 200
-
-
-@app.route("/", methods=["GET"])
-def home():
-    return "Capital.com Trading Bot is live!", 200
-
-
-@app.route("/health", methods=["GET"])
-def health():
-    return "OK", 200
-
-
-# ---------------------------------------------------------
-# STARTUP
-# ---------------------------------------------------------
-if __name__ == "__main__":
-    if not capital_login():
-        print("[FATAL] Authentication failed. Bot will not start.")
-    else:
-        print("[INFO] Bot authenticated successfully. Ready for webhook.")
-        verify_epic("EURUSD")
+def calculate
