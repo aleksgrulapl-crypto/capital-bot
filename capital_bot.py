@@ -47,11 +47,9 @@ def capital_login():
     if r.status_code == 200:
         body = r.json()
 
-        # Extract tokens from HEADERS (Capital.com confirmed this)
         tokens["CST"] = r.headers.get("CST")
         tokens["XST"] = r.headers.get("X-SECURITY-TOKEN")
 
-        # Extract real equity
         tokens["available_equity"] = body["accountInfo"]["available"]
         tokens["balance_equity"] = body["accountInfo"]["balance"]
 
@@ -60,12 +58,7 @@ def capital_login():
         print("[INFO] Available equity:", tokens["available_equity"])
         print("[INFO] Balance equity:", tokens["balance_equity"])
 
-        if tokens["CST"] and tokens["XST"]:
-            print("[INFO] Login successful. Tokens updated.")
-            return True
-
-        print("[ERROR] Login succeeded but tokens missing.")
-        return False
+        return True
 
     print("[ERROR] Login failed:", r.text)
     return False
@@ -106,19 +99,25 @@ def verify_epic(epic):
 
 
 # ---------------------------------------------------------
-# MARKET STATUS
+# MINIMUM SIZE ENFORCEMENT
 # ---------------------------------------------------------
-def is_market_open(epic):
-    data = verify_epic(epic)
-    status = data.get("snapshot", {}).get("marketStatus", "")
-    print(f"[INFO] Market status for {epic}: {status}")
-    return status == "TRADEABLE"
+def enforce_min_size(epic_data, size):
+    rules = epic_data.get("dealingRules", {})
+    min_size = rules.get("minDealSize", {}).get("value", 0.1)
+    increment = rules.get("minSizeIncrement", {}).get("value", 0.1)
+
+    if size < min_size:
+        print(f"[WARN] Size {size} is below minimum {min_size}. Adjusting.")
+        size = min_size
+
+    size = round(size / increment) * increment
+    return round(size, 2)
 
 
 # ---------------------------------------------------------
-# POSITION SIZE (Option A — Available Equity)
+# POSITION SIZE (10% of Available Equity)
 # ---------------------------------------------------------
-def calculate_position_size(price, risk_fraction=0.20):
+def calculate_position_size(price, risk_fraction=0.10):
     equity = tokens["available_equity"]
 
     if equity is None:
@@ -131,7 +130,7 @@ def calculate_position_size(price, risk_fraction=0.20):
         price = 1.0
 
     size = capital_to_use / price
-    print(f"[INFO] Calculated position size: {size:.2f} units (Equity={equity}, Price={price})")
+    print(f"[INFO] Raw position size: {size:.2f} units (Equity={equity}, Price={price})")
     return round(size, 2)
 
 
@@ -183,6 +182,7 @@ def webhook():
     price = epic_data.get("snapshot", {}).get("offer", 1.0)
 
     quantity = calculate_position_size(price)
+    quantity = enforce_min_size(epic_data, quantity)
 
     if not is_market_open(symbol):
         print(f"[INFO] Market closed for {symbol}. Skipping trade.")
