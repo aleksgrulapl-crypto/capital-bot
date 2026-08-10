@@ -39,14 +39,42 @@ def capital_login():
 
     r = requests.post(url, json=payload, headers=headers)
 
+    print("[DEBUG] Raw login response text:", r.text)
+    print("[DEBUG] Raw login response headers:", r.headers)
+
     if r.status_code == 200:
-        body = r.json()
+        try:
+            body = r.json()
+            print("[DEBUG] Parsed login JSON:", body)
+        except:
+            print("[ERROR] Could not parse login JSON.")
+            return False
 
-        tokens["CST"] = body.get("CST")
-        tokens["XST"] = body.get("securityToken")
+        # Try all known token fields
+        tokens["CST"] = (
+            body.get("CST")
+            or body.get("cst")
+            or r.headers.get("CST")
+            or r.headers.get("cst")
+        )
 
-        print("[INFO] Login successful. Tokens updated.")
-        return True
+        tokens["XST"] = (
+            body.get("securityToken")
+            or body.get("xSecurityToken")
+            or body.get("X-SECURITY-TOKEN")
+            or r.headers.get("X-SECURITY-TOKEN")
+            or r.headers.get("securityToken")
+        )
+
+        print("[INFO] Extracted CST:", tokens["CST"])
+        print("[INFO] Extracted XST:", tokens["XST"])
+
+        if tokens["CST"] and tokens["XST"]:
+            print("[INFO] Login successful. Tokens updated.")
+            return True
+
+        print("[ERROR] Login succeeded but tokens were NOT found.")
+        return False
 
     print("[ERROR] Login failed:", r.text)
     return False
