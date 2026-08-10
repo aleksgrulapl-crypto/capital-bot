@@ -96,6 +96,14 @@ def verify_epic(epic):
     r = requests.get(url, headers=auth_headers())
     print("[DEBUG] Epic response:", r.text)
     return r.json()
+# ---------------------------------------------------------
+# MARKET STATUS
+# ---------------------------------------------------------
+def is_market_open(epic):
+    data = verify_epic(epic)
+    status = data.get("snapshot", {}).get("marketStatus", "")
+    print(f"[INFO] Market status for {epic}: {status}")
+    return status == "TRADEABLE"
 
 
 # ---------------------------------------------------------
